@@ -2,12 +2,23 @@ package mathmatics
 
 import "math"
 
+// Gaussian represents a model for the normal distribution.
 type Gaussian struct {
 	tau float64
 	pi  float64
 }
 
 func NewGaussian(pi float64, tau float64) *Gaussian {
+	return &Gaussian{
+		pi:  pi,
+		tau: tau,
+	}
+}
+
+func NewGaussianFromDistribution(mu float64, sigma float64) *Gaussian {
+	pi := math.Pow(sigma, -2)
+	tau := pi * mu
+
 	return &Gaussian{
 		pi:  pi,
 		tau: tau,

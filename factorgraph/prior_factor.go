@@ -1,21 +1,20 @@
 package factorgraph
 
+import (
+	"math"
+
+	"github.com/gami/go-trueskill/mathmatics"
+)
+
 type PriorFactor struct {
-	FactorBase
+	variable *Variable
+	value    *mathmatics.Gaussian
+	dynamic  float64
 }
 
 func (f *PriorFactor) down() float64 {
+	sigma := math.Sqrt(math.Pow(f.value.Sigma(), 2) + math.Pow(f.dynamic, 2))
+	val := mathmatics.NewGaussian(f.value.Mu(), sigma)
 
+	return f.variable.updateMessage(val)
 }
-
-class PriorFactor(Factor):
-
-    def __init__(self, var, val, dynamic=0):
-        super(PriorFactor, self).__init__([var])
-        self.val = val
-        self.dynamic = dynamic
-
-    def down(self):
-        sigma = math.sqrt(self.val.sigma ** 2 + self.dynamic ** 2)
-        value = Gaussian(self.val.mu, sigma)
-        return self.var.update_value(self, value=value)
