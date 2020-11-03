@@ -3,7 +3,8 @@ package factorgraph
 type Factor interface {
 	Up() float64
 	Down() float64
-	Var()
+	Var() *Variable
+	ToString() string
 }
 
 type FactorBase struct {

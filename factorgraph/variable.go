@@ -1,43 +1,49 @@
 package factorgraph
 
-import "github.com/gami/go-trueskill/mathmatics"
+import (
+	"math"
+
+	"github.com/gami/go-trueskill/mathmatics"
+)
 
 type Variable struct {
+	*mathmatics.Gaussian
 	messages map[Factor]*mathmatics.Gaussian
 }
 
-func (v *Variable) set(a *Variable) {
-	delta := v.delta(a)
+func NewVariable(g *mathmatics.Gaussian) *Variable {
+	return &Variable{
+		Gaussian: g,
+		messages: make(map[Factor]*mathmatics.Gaussian),
+	}
 }
 
-func (v *Variable) delta(a *Variable) {
-	pi_delta := v.delta(a)
+func (v *Variable) set(other *Variable) float64 {
+	delta := v.delta(other)
+	v.Pi = other.Pi
+	v.Tau = other.Tau
+	return delta
 }
 
-func (v *Variable) updateMessage(value *mathmatics.Gaussian) {
-	oldMessage := v.factor
-	v.factor = value
-	v.set(v.messages.Divide(oldMessage.Multiply(value)))
+func (v *Variable) delta(other *Variable) float64 {
+	piDelta := math.Abs(v.Pi - other.Pi)
+
+	if piDelta == math.Inf(1) {
+		return 0
+	}
+
+	return math.Max(math.Abs(v.Tau-other.Tau), math.Sqrt(piDelta))
 }
 
-// def update_message(self, factor, pi=0, tau=0, message=None):
-// 	message = message or Gaussian(pi=pi, tau=tau)
-// 	old_message, self[factor] = self[factor], message
-// 	return self.set(self / old_message * message)
+func (v *Variable) updateMessage(factor Factor, msg *mathmatics.Gaussian) float64 {
+	oldMessage := v.messages[factor]
+	v.messages[factor] = msg
+	return v.set(NewVariable(v.Divide(oldMessage).Multiply(msg)))
+}
 
-// def update_value(self, factor, pi=0, tau=0, value=None):
-// 	value = value or Gaussian(pi=pi, tau=tau)
-// 	old_message = self[factor]
-// 	self[factor] = value * old_message / self
-// 	return self.set(value)
+func (v *Variable) updateValue(factor Factor, val *Variable) float64 {
+	oldMessage := v.messages[factor]
+	v.messages[factor] = val.Multiply(oldMessage).Divide(v.Gaussian)
 
-// def __getitem__(self, factor):
-// 	return self.messages[factor]
-
-// def __setitem__(self, factor, message):
-// 	self.messages[factor] = message
-
-// def __repr__(self):
-// 	args = (type(self).__name__, super(Variable, self).__repr__(),
-// 			len(self.messages), '' if len(self.messages) == 1 else 's')
-// 	return '<%s %s with %d connection%s>' % args
+	return v.set(val)
+}
