@@ -1,29 +1,41 @@
 package factorgraph
 
+import "github.com/gami/go-trueskill/mathmatics"
+
 type Factor interface {
 	Up() float64
 	Down() float64
 	Var() *Variable
-	ToString() string
 }
 
 type FactorBase struct {
+	Vars []*Variable
 }
 
-func (f *FactorBase) Up(*FactorBase) float64 {
+func NewFactorBase(factor Factor, vars []*Variable) *FactorBase {
+	f := &FactorBase{
+		Vars: vars,
+	}
+
+	for _, v := range vars {
+		v.messages[factor] = &mathmatics.Gaussian{}
+	}
+
+	return f
+}
+
+func (f *FactorBase) Up() float64 {
 	return 0
 }
 
-func (f *FactorBase) Down(*FactorBase) float64 {
+func (f *FactorBase) Down() float64 {
 	return 0
 }
 
-// def __init__(self, variables):
-// self.vars = variables
-// for var in variables:
-// 	var[self] = Gaussian()
+func (f *FactorBase) Var() *Variable {
+	if len(f.Vars) == 0 {
+		return nil
+	}
 
-// @property
-// def var(self):
-// assert len(self.vars) == 1
-// return self.vars[0]
+	return f.Vars[0]
+}
