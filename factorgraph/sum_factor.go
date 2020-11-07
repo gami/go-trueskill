@@ -78,6 +78,10 @@ func (f *SumFactor) Up() float64 {
 	return f.update(f.terms[idx], vals, msgs, coeffs)
 }
 
+func (f *SumFactor) SetPointer(p int) {
+	f.pointer = p
+}
+
 func (f *SumFactor) update(v *Variable, vals []*Variable, msgs []*mathmatics.Gaussian, coeffs []float64) float64 {
 	piInv := 0.0
 	mu := 0.0
