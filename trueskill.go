@@ -117,7 +117,7 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 
 	teamSizes := teamSizes(ratingGroups)
 
-	_, err := s.runSchedule(
+	layers, err := s.runSchedule(
 		ratingVars,
 		flattenRatings,
 		perfVars,
@@ -132,7 +132,25 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 		return nil, err
 	}
 
-	return ratingGroups, nil
+	transformedGroups := make([][]*Rating, 0, len(teamSizes))
+
+	trimmed := []int{0}
+	trimmed = append(trimmed, teamSizes[0:len(teamSizes)-1]...)
+
+	for i := 0; i < len(teamSizes); i++ {
+		group := make([]*Rating, 0)
+		glayers := layers[trimmed[i]:teamSizes[i]]
+		for _, layer := range glayers {
+			r := &Rating{
+				mu:    layer.Var().Mu(),
+				sigma: layer.Var().Sigma(),
+			}
+			group = append(group, r)
+		}
+		transformedGroups = append(transformedGroups, group)
+	}
+
+	return transformedGroups, nil
 }
 
 func (s *TrueSkill) validateRatingGroup(ratingGroups [][]*Rating) error {
@@ -160,7 +178,7 @@ func (s *TrueSkill) runSchedule(
 	teamDiffVars []*factorgraph.Variable,
 	sortedRanks []int,
 	sortedRatingGroups [][]*Rating,
-) ([]factorgraph.Factor, error) {
+) ([]*factorgraph.PriorFactor, error) {
 	ratingLayer := s.buildRatingLayer(ratingVars, flattenRatings)
 	perfLayer := s.buildPerfLayer(ratingVars, perfVars)
 	teamPerfLayer := s.buildTeamPerfLayer(
@@ -235,15 +253,15 @@ func (s *TrueSkill) runSchedule(
 	return ratingLayer, nil
 }
 
-func (s *TrueSkill) buildRatingLayer(ratingVars []*factorgraph.Variable, flattenRatings []*Rating) []factorgraph.Factor {
-	layer := make([]factorgraph.Factor, 0, len(ratingVars))
+func (s *TrueSkill) buildRatingLayer(ratingVars []*factorgraph.Variable, flattenRatings []*Rating) []*factorgraph.PriorFactor {
+	layers := make([]*factorgraph.PriorFactor, 0, len(ratingVars))
 
 	for i, v := range ratingVars {
 		f := factorgraph.NewPriorFactor(v, flattenRatings[i].gaussian(), s.tau)
-		layer = append(layer, f)
+		layers = append(layers, f)
 	}
 
-	return layer
+	return layers
 }
 
 func (s *TrueSkill) buildPerfLayer(ratingVars []*factorgraph.Variable, perfVars []*factorgraph.Variable) []factorgraph.Factor {
