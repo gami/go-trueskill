@@ -7,6 +7,11 @@ import (
 
 	"github.com/chobie/go-gaussian"
 	"github.com/gami/go-trueskill/factorgraph"
+	"github.com/gami/go-trueskill/mathmatics"
+)
+
+const (
+	MIN_DELTA = 0.001 // A basis to check reliability of the result.
 )
 
 // Trueskill represents envirionment of rating
@@ -68,43 +73,69 @@ func DrawProbability(v float64) option {
 
 func (s *TrueSkill) CreateRating() *Rating {
 	return &Rating{
-		mu:    s.mu,
-		sigma: s.sigma,
+		mu:     s.mu,
+		sigma:  s.sigma,
+		weight: 1,
 	}
 }
 
 // Rate recalculates ratings by the ranking table:
-func (s *TrueSkill) Rate(ratingGroups []RatingGroup) ([]RatingGroup, error) {
+func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 	if err := s.validateRatingGroup(ratingGroups); err != nil {
 		return nil, err
 	}
 
-	// # build factor graph
-	// args = (sorted_rating_groups, sorted_ranks, sorted_weights)
-	// builders = self.factor_graph_builders(*args)
-	// args = builders + (min_delta,)
-	// layers = self.run_schedule(*args)
+	flattenRatings := make([]*Rating, 0)
+	sortedRanks := make([]int, 0)
+	rank := 0
+	for _, rg := range ratingGroups {
+		for _, r := range rg {
+			flattenRatings = append(flattenRatings, r)
+			sortedRanks = append(sortedRanks, rank)
+		}
+		rank++
+	}
 
-	// # make result
-	// rating_layer, team_sizes = layers[0], _team_sizes(sorted_rating_groups)
-	// transformed_groups = []
-	// for start, end in zip([0] + team_sizes[:-1], team_sizes):
-	//     group = []
-	//     for f in rating_layer[start:end]:
-	//         group.append(Rating(float(f.var.mu), float(f.var.sigma)))
-	//     transformed_groups.append(tuple(group))
-	// by_hint = lambda x: x[0]
-	// unsorting = sorted(zip((x for x, __ in sorting), transformed_groups),
-	//                    key=by_hint)
-	// if keys is None:
-	//     return [g for x, g in unsorting]
-	// # restore the structure with input dictionary keys
-	// return [dict(zip(keys[x], g)) for x, g in unsorting]
+	ratingVars := make([]*factorgraph.Variable, 0, len(flattenRatings))
+	perfVars := make([]*factorgraph.Variable, 0, len(flattenRatings))
+	flattenWeights := make([]float64, 0, len(flattenRatings))
+	for _, r := range flattenRatings {
+		ratingVars = append(ratingVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+		perfVars = append(perfVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+		flattenWeights = append(flattenWeights, r.weight)
+	}
+
+	teamPerfVars := make([]*factorgraph.Variable, 0, len(ratingGroups))
+	for i := 0; i < len(teamPerfVars); i++ {
+		teamPerfVars = append(teamPerfVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+	}
+
+	teamDiffVars := make([]*factorgraph.Variable, 0, len(ratingGroups)-1)
+	for i := 0; i < len(teamDiffVars); i++ {
+		teamDiffVars = append(teamDiffVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+	}
+
+	teamSizes := teamSizes(ratingGroups)
+
+	_, err := s.runSchedule(
+		ratingVars,
+		flattenRatings,
+		perfVars,
+		teamPerfVars,
+		teamSizes,
+		flattenWeights,
+		teamDiffVars,
+		sortedRanks,
+		ratingGroups,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	return ratingGroups, nil
 }
 
-func (s *TrueSkill) validateRatingGroup(ratingGroups []RatingGroup) error {
+func (s *TrueSkill) validateRatingGroup(ratingGroups [][]*Rating) error {
 	if len(ratingGroups) < 2 {
 		return errors.New("need multiple rating groups")
 	}
@@ -129,12 +160,7 @@ func (s *TrueSkill) runSchedule(
 	teamDiffVars []*factorgraph.Variable,
 	sortedRanks []int,
 	sortedRatingGroups [][]*Rating,
-	minDelta float64,
 ) ([]factorgraph.Factor, error) {
-	if minDelta <= 0 {
-		return nil, errors.New("minDelta must be greater than 0")
-	}
-
 	ratingLayer := s.buildRatingLayer(ratingVars, flattenRatings)
 	perfLayer := s.buildPerfLayer(ratingVars, perfVars)
 	teamPerfLayer := s.buildTeamPerfLayer(
@@ -183,7 +209,7 @@ func (s *TrueSkill) runSchedule(
 		}
 
 		// Repeat until too small update
-		if delta <= minDelta {
+		if delta <= MIN_DELTA {
 			break
 		}
 	}
@@ -389,4 +415,16 @@ func (s *TrueSkill) wDraw(diff float64, drawMargin float64) float64 {
 	v := s.vDraw(absDiff, drawMargin)
 
 	return math.Pow(v, 2) + (a*g.Pdf(a)-b*g.Pdf(b))/denom
+}
+
+// Makes a size map of each teams.
+func teamSizes(ratingGroups [][]*Rating) []int {
+	teamSizes := make([]int, 0, len(ratingGroups))
+	size := 0
+	for _, r := range ratingGroups {
+		teamSizes = append(teamSizes, size+len(r))
+		size += len(r)
+	}
+
+	return teamSizes
 }
