@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	MIN_DELTA = 0.001 // A basis to check reliability of the result.
+	// MinDelta is a basis to check reliability of the result.
+	MinDelta = 0.001
 )
 
-// Trueskill represents envirionment of rating
+// TrueSkill represents envirionment of rating
 type TrueSkill struct {
 	mu              float64 // the initial mean of ratings.
 	sigma           float64 // the initial standard deviation of ratings. The recommended value is a third of mu.
@@ -111,7 +112,7 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 	}
 
 	teamDiffVars := make([]*factorgraph.Variable, 0, len(ratingGroups)-1)
-	for i := 0; i < len(teamDiffVars); i++ {
+	for i := 0; i < len(ratingGroups)-1; i++ {
 		teamDiffVars = append(teamDiffVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
 	}
 
@@ -159,7 +160,7 @@ func (s *TrueSkill) validateRatingGroup(ratingGroups [][]*Rating) error {
 	}
 
 	for _, rs := range ratingGroups {
-		if len(rs) < 2 {
+		if len(rs) < 1 {
 			return errors.New("each group must contain multiple ratings")
 		}
 	}
@@ -227,7 +228,7 @@ func (s *TrueSkill) runSchedule(
 		}
 
 		// Repeat until too small update
-		if delta <= MIN_DELTA {
+		if delta <= MinDelta {
 			break
 		}
 	}
@@ -391,16 +392,13 @@ func (s *TrueSkill) vDraw(diff float64, drawMargin float64) float64 {
 	if denom != 0 && !math.IsNaN(denom) {
 		if diff < 0 {
 			return (numer / denom) * -1
-		} else {
-			return (numer / denom)
 		}
-	} else {
-		if diff < 0 {
-			return a * -1
-		} else {
-			return a
-		}
+		return (numer / denom)
 	}
+	if diff < 0 {
+		return a * -1
+	}
+	return a
 }
 
 // The non-draw version of "W" function.

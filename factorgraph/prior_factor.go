@@ -15,8 +15,9 @@ type PriorFactor struct {
 
 func NewPriorFactor(v *Variable, val *mathmatics.Gaussian, dynamic float64) *PriorFactor {
 	f := &PriorFactor{
-		value:   val,
-		dynamic: dynamic,
+		variable: v,
+		value:    val,
+		dynamic:  dynamic,
 	}
 
 	f.FactorBase = NewFactorBase(f, []*Variable{v})

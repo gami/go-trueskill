@@ -42,6 +42,10 @@ func (v *Variable) updateMessage(factor Factor, msg *mathmatics.Gaussian) float6
 }
 
 func (v *Variable) updateValue(factor Factor, val *Variable) float64 {
+	if v.messages == nil {
+		panic("variable must be initialized by NewVariable func.")
+	}
+
 	oldMessage := v.messages[factor]
 	v.messages[factor] = val.Multiply(oldMessage).Divide(v.Gaussian)
 
