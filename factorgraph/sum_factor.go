@@ -40,7 +40,7 @@ func (f *SumFactor) Down() float64 {
 	return f.update(f.sum, f.terms, msgs, f.coeffs)
 }
 
-func (f *SumFactor) Up() float64 {
+func (f *SumFactor) Up() (float64, error) {
 	idx := f.pointer
 	f.pointer++
 
@@ -64,7 +64,7 @@ func (f *SumFactor) Up() float64 {
 		coeffs = append(coeffs, p)
 	}
 
-	vals := make([]*Variable, 0, len(f.terms))
+	vals := make([]*Variable, len(f.terms))
 	_ = copy(vals, f.terms)
 
 	vals[idx] = f.sum
@@ -75,7 +75,7 @@ func (f *SumFactor) Up() float64 {
 		msgs = append(msgs, v.messages[f])
 	}
 
-	return f.update(f.terms[idx], vals, msgs, coeffs)
+	return f.update(f.terms[idx], vals, msgs, coeffs), nil
 }
 
 func (f *SumFactor) SetPointer(p int) {
@@ -102,5 +102,5 @@ func (f *SumFactor) update(v *Variable, vals []*Variable, msgs []*mathmatics.Gau
 
 	pi := 1.0 / piInv
 	tau := pi * mu
-	return v.updateMessage(f, mathmatics.NewGaussianFromPrecision(pi, tau))
+	return v.updateMessage(f, mathmatics.NewGaussian(pi, tau))
 }

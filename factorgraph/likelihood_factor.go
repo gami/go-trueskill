@@ -27,11 +27,11 @@ func (f *LikelihoodFactor) calcA(v *mathmatics.Gaussian) float64 {
 func (f *LikelihoodFactor) Down() float64 {
 	msg := f.mean.Divide(f.mean.messages[f])
 	a := f.calcA(msg)
-	return f.value.updateMessage(f, mathmatics.NewGaussianFromPrecision(a*msg.Pi, a*msg.Tau))
+	return f.value.updateMessage(f, mathmatics.NewGaussian(a*msg.Pi, a*msg.Tau))
 }
 
-func (f *LikelihoodFactor) Up() float64 {
+func (f *LikelihoodFactor) Up() (float64, error) {
 	msg := f.value.Divide(f.value.messages[f])
 	a := f.calcA(msg)
-	return f.mean.updateMessage(f, mathmatics.NewGaussianFromPrecision(a*msg.Pi, a*msg.Tau))
+	return f.mean.updateMessage(f, mathmatics.NewGaussian(a*msg.Pi, a*msg.Tau)), nil
 }

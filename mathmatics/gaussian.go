@@ -8,7 +8,7 @@ type Gaussian struct {
 	Tau float64 // Precision adjusted mean, the precision multiplied by the mean.
 }
 
-func NewGaussianFromPrecision(pi float64, tau float64) *Gaussian {
+func NewGaussian(pi float64, tau float64) *Gaussian {
 	return &Gaussian{
 		Pi:  pi,
 		Tau: tau,

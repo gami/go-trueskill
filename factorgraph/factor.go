@@ -1,9 +1,11 @@
 package factorgraph
 
-import "github.com/gami/go-trueskill/mathmatics"
+import (
+	"github.com/gami/go-trueskill/mathmatics"
+)
 
 type Factor interface {
-	Up() float64
+	Up() (float64, error)
 	Down() float64
 	Var() *Variable
 }
@@ -24,8 +26,8 @@ func NewFactorBase(factor Factor, vars []*Variable) *FactorBase {
 	return f
 }
 
-func (f *FactorBase) Up() float64 {
-	return 0
+func (f *FactorBase) Up() (float64, error) {
+	return 0, nil
 }
 
 func (f *FactorBase) Down() float64 {

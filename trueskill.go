@@ -3,6 +3,7 @@ package trueskill
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 
 	"github.com/chobie/go-gaussian"
@@ -101,19 +102,19 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 	perfVars := make([]*factorgraph.Variable, 0, len(flattenRatings))
 	flattenWeights := make([]float64, 0, len(flattenRatings))
 	for _, r := range flattenRatings {
-		ratingVars = append(ratingVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
-		perfVars = append(perfVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+		ratingVars = append(ratingVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
+		perfVars = append(perfVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
 		flattenWeights = append(flattenWeights, r.weight)
 	}
 
 	teamPerfVars := make([]*factorgraph.Variable, 0, len(ratingGroups))
-	for i := 0; i < len(teamPerfVars); i++ {
-		teamPerfVars = append(teamPerfVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+	for i := 0; i < len(ratingGroups); i++ {
+		teamPerfVars = append(teamPerfVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
 	}
 
 	teamDiffVars := make([]*factorgraph.Variable, 0, len(ratingGroups)-1)
 	for i := 0; i < len(ratingGroups)-1; i++ {
-		teamDiffVars = append(teamDiffVars, factorgraph.NewVariable(mathmatics.NewGaussianFromDistribution(0, 0)))
+		teamDiffVars = append(teamDiffVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
 	}
 
 	teamSizes := teamSizes(ratingGroups)
@@ -206,22 +207,34 @@ func (s *TrueSkill) runSchedule(
 
 	for index := 0; index <= 10; index++ {
 		delta := 0.0
+		var err error
 		if teamDiffLen == 1 {
 			// Only two teams
 			teamDiffLayer[0].Down()
-			delta = truncLayer[0].Up()
+			delta, err = truncLayer[0].Up()
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			// Multiple teams
 			for z := 0; z < teamDiffLen-1; z++ {
 				teamDiffLayer[z].Down()
-				delta = math.Max(delta, truncLayer[z].Up())
+				d, err := truncLayer[z].Up()
+				if err != nil {
+					return nil, err
+				}
+				delta = math.Max(delta, d)
 				teamDiffLayer[z].SetPointer(1)
 				teamDiffLayer[z].Up()
 			}
 
 			for z := teamDiffLen - 1; z > 0; z-- {
 				teamDiffLayer[z].Down()
-				delta = math.Max(delta, truncLayer[z].Up())
+				d, err := truncLayer[z].Up()
+				if err != nil {
+					return nil, err
+				}
+				delta = math.Max(delta, d)
 				teamDiffLayer[z].SetPointer(0)
 				teamDiffLayer[z].Up()
 			}
@@ -343,10 +356,10 @@ func (s *TrueSkill) buildTruncLayer(
 		drawMargin := s.calcDrawMargin(size)
 
 		vFunc := func(a float64, b float64) float64 { return s.vWin(a, b) }
-		wFunc := func(a float64, b float64) float64 { return s.wWin(a, b) }
+		wFunc := func(a float64, b float64) (float64, error) { return s.wWin(a, b) }
 		if sortedRanks[x] == sortedRanks[x+1] {
 			vFunc = func(a float64, b float64) float64 { return s.vDraw(a, b) }
-			wFunc = func(a float64, b float64) float64 { return s.wDraw(a, b) }
+			wFunc = func(a float64, b float64) (float64, error) { return s.wDraw(a, b) }
 		}
 
 		x++
@@ -403,19 +416,20 @@ func (s *TrueSkill) vDraw(diff float64, drawMargin float64) float64 {
 
 // The non-draw version of "W" function.
 // "W" calculates a variation of a standard deviation.
-func (s *TrueSkill) wWin(diff float64, drawMargin float64) float64 {
+func (s *TrueSkill) wWin(diff float64, drawMargin float64) (float64, error) {
+	log.Printf("wWin diff=%v", diff)
 	x := diff - drawMargin
 	v := s.vWin(diff, drawMargin)
 	w := v * (v + x)
 	if w > 0 && w < 1 {
-		return w
+		return w, nil
 	}
 
-	panic(fmt.Sprintf("wWin floating point error w=%v", w))
+	return 0, fmt.Errorf("wWin floating point error w=%v diff=%v drawMargin=%v", w, diff, drawMargin)
 }
 
 // The draw version of "w" function.
-func (s *TrueSkill) wDraw(diff float64, drawMargin float64) float64 {
+func (s *TrueSkill) wDraw(diff float64, drawMargin float64) (float64, error) {
 	absDiff := math.Abs(diff)
 	a := drawMargin - absDiff
 	b := -1*drawMargin - absDiff
@@ -425,12 +439,12 @@ func (s *TrueSkill) wDraw(diff float64, drawMargin float64) float64 {
 	denom := g.Cdf(a) - g.Cdf(b)
 
 	if denom == 0 || math.IsNaN(denom) {
-		panic(fmt.Sprintf("wWin floating point error denom=%v", denom))
+		return 0, fmt.Errorf("wWin floating point error denom=%v", denom)
 	}
 
 	v := s.vDraw(absDiff, drawMargin)
 
-	return math.Pow(v, 2) + (a*g.Pdf(a)-b*g.Pdf(b))/denom
+	return math.Pow(v, 2) + (a*g.Pdf(a)-b*g.Pdf(b))/denom, nil
 }
 
 // Makes a size map of each teams.

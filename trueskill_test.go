@@ -20,11 +20,10 @@ func ExampleTrueSkill_Rate() {
 
 	for i, rs := range calced {
 		for k, r := range rs {
-			fmt.Printf("team=%v member=%v score=%v", i, k, r.Expose())
+			fmt.Printf("team=%v member=%v score=%v\n", i, k, r.Expose())
 		}
 	}
 
-	fmt.Println("done")
 	// Output:
 	// done
 }
