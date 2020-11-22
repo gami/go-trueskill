@@ -55,7 +55,11 @@ func (f *SumFactor) Up() (float64, error) {
 			p = 1.0 / coeff
 		}
 
-		if !math.IsInf(p, 1) {
+		if math.IsInf(p, -1) || math.IsNaN(p) {
+			p = 0
+		}
+
+		if coeff == 0 {
 			p = 0
 		}
 
@@ -93,7 +97,7 @@ func (f *SumFactor) update(v *Variable, vals []*Variable, msgs []*mathmatics.Gau
 		div := val.Divide(msg)
 		mu += coeff * div.Mu()
 
-		if math.IsInf(piInv, 1) {
+		if math.IsInf(piInv, -1) || math.IsNaN(piInv) {
 			continue
 		}
 
