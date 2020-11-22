@@ -3,7 +3,6 @@ package trueskill
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 
 	"github.com/chobie/go-gaussian"
@@ -167,6 +166,13 @@ func (s *TrueSkill) validateRatingGroup(ratingGroups [][]*Rating) error {
 	}
 
 	return nil
+}
+
+// Expose returns the value of the rating exposure.  It starts from 0 and
+// converges to the mean.
+func (s *TrueSkill) Expose(r *Rating) float64 {
+	k := s.mu / s.sigma
+	return r.mu - k*r.sigma
 }
 
 // runSchedule sends messages within every nodes of the factor graph until the result is reliable.
@@ -417,7 +423,6 @@ func (s *TrueSkill) vDraw(diff float64, drawMargin float64) float64 {
 // The non-draw version of "W" function.
 // "W" calculates a variation of a standard deviation.
 func (s *TrueSkill) wWin(diff float64, drawMargin float64) (float64, error) {
-	log.Printf("wWin diff=%v", diff)
 	x := diff - drawMargin
 	v := s.vWin(diff, drawMargin)
 	w := v * (v + x)
