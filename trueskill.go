@@ -11,6 +11,11 @@ import (
 )
 
 const (
+	defaultMu              = 25.0
+	defaultSigmaDenom      = 3
+	defaultBetaDenom       = 2
+	defaultTauDenom        = 100
+	defaultDrawProbability = 0.1
 	// MinDelta is a basis to check reliability of the result.
 	MinDelta = 0.001
 )
@@ -28,15 +33,24 @@ type option func(*TrueSkill)
 
 func NewTrueSkill(options ...option) *TrueSkill {
 	s := &TrueSkill{
-		mu:              25.0,
-		sigma:           8.333333333333334,
-		beta:            4.166666666666667,
-		tau:             0.08333333333333334,
-		drawProbability: 0.1,
+		mu:              defaultMu,
+		drawProbability: defaultDrawProbability,
 	}
 
 	for _, opt := range options {
 		opt(s)
+	}
+
+	if s.sigma == 0 {
+		s.sigma = s.mu / defaultSigmaDenom
+	}
+
+	if s.beta == 0 {
+		s.beta = s.sigma / defaultBetaDenom
+	}
+
+	if s.tau == 0 {
+		s.tau = s.sigma / defaultTauDenom
 	}
 
 	return s
@@ -73,11 +87,7 @@ func DrawProbability(v float64) option {
 }
 
 func (s *TrueSkill) CreateRating() *Rating {
-	return &Rating{
-		mu:     s.mu,
-		sigma:  s.sigma,
-		weight: 1,
-	}
+	return NewRating(s.mu, s.sigma, 1)
 }
 
 // Rate recalculates ratings by the ranking table:
@@ -103,7 +113,7 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 	for _, r := range flattenRatings {
 		ratingVars = append(ratingVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
 		perfVars = append(perfVars, factorgraph.NewVariable(mathmatics.NewGaussian(0, 0)))
-		flattenWeights = append(flattenWeights, r.weight)
+		flattenWeights = append(flattenWeights, r.Weight)
 	}
 
 	teamPerfVars := make([]*factorgraph.Variable, 0, len(ratingGroups))
@@ -142,10 +152,7 @@ func (s *TrueSkill) Rate(ratingGroups [][]*Rating) ([][]*Rating, error) {
 		group := make([]*Rating, 0)
 		glayers := layers[trimmed[i]:teamSizes[i]]
 		for _, layer := range glayers {
-			r := &Rating{
-				mu:    layer.Var().Mu(),
-				sigma: layer.Var().Sigma(),
-			}
+			r := NewRating(layer.Var().Mu(), layer.Var().Sigma(), 1)
 			group = append(group, r)
 		}
 		transformedGroups = append(transformedGroups, group)
@@ -172,7 +179,19 @@ func (s *TrueSkill) validateRatingGroup(ratingGroups [][]*Rating) error {
 // converges to the mean.
 func (s *TrueSkill) Expose(r *Rating) float64 {
 	k := s.mu / s.sigma
-	return r.mu - k*r.sigma
+	return r.Mu - k*r.Sigma
+}
+
+// Rate1v1 is a shortcut to rate just 2 players in a head-to-head match
+func (s *TrueSkill) Rate1v1(
+	win *Rating,
+	lose *Rating,
+) ([]*Rating, error) {
+	teams, err := s.Rate([][]*Rating{{win}, {lose}})
+	if err != nil {
+		return nil, err
+	}
+	return []*Rating{teams[0][0], teams[1][0]}, nil
 }
 
 // runSchedule sends messages within every nodes of the factor graph until the result is reliable.
